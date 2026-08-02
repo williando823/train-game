@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <!-- 強制網頁符合裝置寬度，並禁止雙指縮放 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小小火車長：造句大冒險 (K3 專屬版)</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* Color Palette */
+            --c-sky-top: #4FACFE;
+            --c-sky-bot: #00F2FE;
+            --c-grass: #76b852;
+            --c-grass-dark: #5a9a3a;
+            --c-wood: #8d6e63;
+            --c-wood-dark: #5d4037;
+            --c-rail: #555;
+            
+            /* Train Colors */
+            --c-engine: #e74c3c;
+            --c-car: #f1c40f;
+            --c-car-shadow: #d4ac0d;
+            
+            /* UI Colors */
+            --c-primary: #ff6b6b;
+            --c-white: #ffffff;
+            
+            /* Fonts */
+            --f-title: 'ZCOOL KuaiLe', cursive;
+            --f-body: 'Noto Sans TC', sans-serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            font-family: var(--f-body);
+            background: linear-gradient(to bottom, var(--c-sky-top) 0%, var(--c-sky-bot) 50%, var(--c-grass) 50.5%, var(--c-grass-dark) 100%);
+        }
+
+        /* --- Scene Layer --- */
+        #scene {
+            position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 0;
+        }
+
+        .cloud {
+            position: absolute; background: rgba(255,255,255,0.8); border-radius: 50px;
+            animation: drift linear infinite;
+        }
+        
+        @keyframes drift { from { transform: translateX(110vw); } to { transform: translateX(-150px); } }
+
+        .hill {
+            position: absolute; bottom: 40%; width: 0; height: 0; 
+            border-left: 100px solid transparent; border-right: 100px solid transparent; 
+            border-bottom: 150px solid #8bc34a; opacity: 0.6;
+        }
+
+        /* --- Tracks (往上調整至畫面 50% 高度位置，徹底讓出下方空間) --- */
+        .track-container {
+            position: absolute; bottom: 50%; width: 100%; height: 40px; z-index: 1;
+        }
+        .sleepers {
+            width: 100%; height: 15px; background: var(--c-wood-dark);
+            background-image: repeating-linear-gradient(90deg, transparent, transparent 50px, var(--c-wood) 50px, var(--c-wood) 70px);
+        }
+        .rails {
+            width: 100%; height: 8px; background: var(--c-rail); margin-top: -8px; border-bottom: 2px solid #333;
+        }
+
+        /* --- UI Overlay --- */
+        #ui-layer {
+            position: absolute; width: 100%; height: 100%; z-index: 10;
+            display: flex; flex-direction: column; justify-content: flex-start; pointer-events: none;
+        }
+
+        .header {
+            padding: 12px 20px 5px 20px; display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.25), transparent); pointer-events: auto;
+        }
+
+        .title-box h1 {
+            font-family: var(--f-title); color: #fff; font-size: 1.5rem; margin: 0;
+            text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+        }
+
+        .status-badge {
+            background: rgba(255,255,255,0.9); padding: 5px 15px; border-radius: 20px;
+            font-weight: bold; color: #333; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex; gap: 8px; align-items: center;
+        }
+
+        .progress-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+        .progress-dot.active { background: var(--c-primary); }
+
+        /* --- Buttons & Selector (移往畫面上半部，緊跟 Header 之後，保證不受下方阻擋) --- */
+        .controls {
+            padding: 10px 20px 15px 20px; display: flex; justify-content: center; align-items: center; gap: 15px; pointer-events: auto;
+            flex-wrap: wrap; z-index: 20;
+        }
+
+        .btn {
+            background: var(--c-wood); color: #fff; border: 2px solid var(--c-wood-dark);
+            padding: 8px 22px; border-radius: 30px; font-family: var(--f-title); font-size: 1.1rem;
+            cursor: pointer; box-shadow: 0 4px 0 var(--c-wood-dark); transition: transform 0.1s;
+            white-space: nowrap;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 0 0; }
+        .btn.primary { background: var(--c-primary); border-color: #c0392b; box-shadow: 0 4px 0 #c0392b; }
+
+        .level-select {
+            background: #fff; color: #333; border: 3px solid var(--c-wood-dark);
+            padding: 7px 15px; border-radius: 20px; font-family: var(--f-body); font-size: 0.95rem; font-weight: bold;
+            cursor: pointer; box-shadow: 0 4px 0 var(--c-wood-dark); outline: none;
+            max-width: 240px;
+        }
+        .level-select:active { transform: translateY(4px); box-shadow: 0 0 0; }
+
+        /* --- Game Areas (配合鐵軌拉高至畫面 52% 高度) --- */
+        #sentence-area {
+            position: absolute; bottom: 52%; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: flex-end; z-index: 5; min-width: 50px; min-height: 80px;
+            padding-left: 120px; 
+            transition: transform 0.5s ease-in-out;
+        }
+
+        /* --- Word Pool (安置在最下方約 30% 空間，上方不再有任何浮動按鈕) --- */
+        #word-pool {
+            position: absolute; bottom: 0; width: 100%; height: 30%; min-height: 140px;
+            background: rgba(255,255,255,0.22); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 14px;
+            padding: 15px 25px; z-index: 5; pointer-events: auto;
+            border-top: 3px solid rgba(255,255,255,0.4);
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* --- Train Components --- */
+        .train-part {
+            position: relative; cursor: pointer; touch-action: manipulation; transition: transform 0.15s ease, opacity 0.2s;
+        }
+
+        .train-part:active { transform: scale(0.92); }
+
+        /* Engine */
+        .engine {
+            width: 120px; height: 90px; background: var(--c-engine);
+            border-radius: 20px 40px 10px 10px; position: absolute; left: -110px; bottom: 0;
+            box-shadow: inset -5px -5px 0 rgba(0,0,0,0.2); z-index: 4;
+            cursor: default;
+        }
+        .engine::before { 
+            content: ''; position: absolute; top: -20px; left: 20px; width: 30px; height: 25px;
+            background: #333; border-radius: 5px 5px 0 0;
+        }
+        .engine::after { 
+            content: ''; position: absolute; top: 15px; right: 15px; width: 40px; height: 35px;
+            background: #fdfefe; border: 3px solid #333; border-radius: 50% 50% 0 0;
+        }
+
+        /* Car */
+        .car {
+            min-width: 70px; width: max-content; padding: 0 10px; height: 60px;
+            background: var(--c-car);
+            border-radius: 8px 8px 0 0; border: 3px solid #333; border-bottom: none;
+            display: flex; justify-content: center; align-items: center;
+            font-family: var(--f-body); font-weight: bold; color: #333;
+            box-shadow: 4px 4px 0 var(--c-car-shadow); margin-right: 4px;
+            flex-shrink: 0;
+            animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Wheels */
+        .wheels {
+            position: absolute; bottom: -12px; left: 0; width: 100%; display: flex; justify-content: space-around; padding: 0 5px;
+            pointer-events: none;
+        }
+        .wheel {
+            width: 22px; height: 22px; background: #333; border: 2px solid #777; border-radius: 50%;
+            background-image: radial-gradient(circle at center, #777 20%, transparent 20%);
+            animation: spin 0.8s linear infinite paused; 
+        }
+        .train-part.moving .wheel { animation-play-state: running; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Steam */
+        .steam {
+            position: absolute; top: -40px; left: 30px; width: 20px; height: 20px;
+            background: #fff; border-radius: 50%; opacity: 0; pointer-events: none;
+        }
+        @keyframes puff { 0% { opacity: 0.8; transform: scale(0.5) translateY(0); } 100% { opacity: 0; transform: scale(1.5) translateY(-30px); } }
+
+        /* --- Modal --- */
+        #modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;
+            background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #modal.visible { opacity: 1; pointer-events: auto; }
+        .modal-card {
+            background: #fff; width: 85%; max-width: 400px; padding: 30px; border-radius: 20px;
+            text-align: center; border: 8px solid var(--c-wood); transform: scale(0.8); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        #modal.visible .modal-card { transform: scale(1); }
+        .modal-title { font-family: var(--f-title); font-size: 2rem; margin: 0 0 10px; }
+        .success { color: #27ae60; } .fail { color: #c0392b; }
+
+        /* Animations */
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(-50%); }
+            25% { transform: translateX(calc(-50% - 10px)); }
+            75% { transform: translateX(calc(-50% + 10px)); }
+        }
+
+        /* =========================================================
+           RESPONSIVE DESIGN (響應式設計區域) 
+           ========================================================= */
+
+        /* 1. 平板尺寸 (Tablet: 螢幕寬度小於 820px) */
+        @media (max-width: 820px) {
+            .car { min-width: 65px; height: 55px; }
+            .engine { width: 100px; height: 80px; left: -95px; }
+            #sentence-area { padding-left: 105px; bottom: 50%; }
+            .track-container { bottom: 48%; }
+        }
+
+        /* 2. 手機直向 (Mobile Portrait: 螢幕寬度小於 480px) */
+        @media (max-width: 480px) {
+            .car { min-width: 50px; height: 46px; padding: 0 6px; border-width: 2px; }
+            .engine { width: 85px; height: 70px; left: -80px; border-radius: 15px 30px 8px 8px; }
+            .engine::before { top: -15px; left: 15px; width: 20px; height: 20px; }
+            .engine::after { top: 10px; right: 10px; width: 30px; height: 25px; border-width: 2px; }
+            
+            #sentence-area { padding-left: 90px; bottom: 48%; }
+            .track-container { bottom: 46%; }
+            #word-pool { height: 32%; gap: 8px; min-height: 110px; padding: 10px; }
+            
+            .wheels { bottom: -10px; }
+            .wheel { width: 18px; height: 18px; border-width: 1px; }
+            
+            .title-box h1 { font-size: 1.1rem; }
+            .status-badge { font-size: 0.85rem; padding: 4px 10px; }
+            .btn { padding: 7px 16px; font-size: 0.9rem; }
+            .level-select { font-size: 0.85rem; max-width: 160px; padding: 6px 10px; }
+            .controls { gap: 8px; padding: 5px 10px 10px 10px; }
+        }
+
+        /* 3. 手機橫向 / 矮螢幕 (Landscape: 螢幕高度小於 600px) */
+        @media (max-height: 600px) {
+            #word-pool { height: auto; padding: 10px; min-height: 85px; }
+            .track-container { bottom: 50%; }
+            #sentence-area { bottom: 52%; }
+            .controls { padding: 4px; }
+            .header { padding: 4px 15px; }
+            .car { height: 45px; }
+            .engine { height: 65px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background Scenery -->
+    <div id="scene">
+        <div class="hill" style="left: -50px; border-bottom-width: 200px; border-left-width: 150px; border-right-width: 150px;"></div>
+        <div class="hill" style="right: -20px; border-bottom-width: 180px; border-left-width: 120px; border-right-width: 120px;"></div>
+    </div>
+
+    <!-- Main Game Stage -->
+    <div id="game-stage">
+        <!-- Tracks -->
+        <div class="track-container">
+            <div class="sleepers"></div>
+            <div class="rails"></div>
+        </div>
+
+        <!-- Sentence Assembly Area -->
+        <div id="sentence-area">
+            <div class="train-part engine">
+                <div class="wheels"><div class="wheel"></div><div class="wheel"></div></div>
+                <div class="steam" id="steam"></div>
+            </div>
+        </div>
+
+        <!-- Word Pool (固定在畫面底部) -->
+        <div id="word-pool"></div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        <div class="header">
+            <div class="title-box">
+                <h1>🚂 小小火車長</h1>
+            </div>
+            <div class="status-badge">
+                <span>Lv:</span>
+                <div id="dots-container" style="display:flex; gap:4px;"></div>
+                <span id="score-display" style="margin-left:4px;">0</span>
+            </div>
+        </div>
+
+        <!-- 控制項已移到頂部，遠離下方字詞池 -->
+        <div class="controls">
+            <select id="level-selector" class="level-select" onchange="game.selectLevel(this.value)">
+                <!-- 自動由 JS 建立選項 -->
+            </select>
+            <button class="btn" onclick="game.resetLevel()">重置</button>
+            <button class="btn primary" onclick="game.checkAnswer()">出發！</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="modal">
+        <div class="modal-card">
+            <h2 id="m-title" class="modal-title"></h2>
+            <p id="m-msg" style="font-size:1.1rem; color:#555;"></p>
+            <button class="btn primary" style="margin-top:20px;" onclick="game.handleModalClick()">繼續</button>
+        </div>
+    </div>
+
+    <script>
+        // 5 個難度的 K3 小朋友造句語庫 (共 15 題)
+        const levels = [
+            // Lv. 1 簡單 (10分)
+            { text: "早上我跟老師說早安", words: ["早上", "我", "跟老師", "說早安"], diff: 1, points: 10 },
+            { text: "妹妹喜歡看圖書", words: ["妹妹", "喜歡", "看圖書"], diff: 1, points: 10 },
+            { text: "小魚在水裡游來游去", words: ["小魚", "在水裡", "游來游去"], diff: 1, points: 10 },
+            
+            // Lv. 2 基礎 (15分)
+            { text: "哥哥每天都會刷牙", words: ["哥哥", "每天", "都會", "刷牙"], diff: 2, points: 15 },
+            { text: "我和朋友一起溜滑梯", words: ["我和朋友", "一起", "溜滑梯"], diff: 2, points: 15 },
+            { text: "可愛的小貓在睡覺", words: ["可愛的", "小貓", "在", "睡覺"], diff: 2, points: 15 },
+            
+            // Lv. 3 中等 (20分)
+            { text: "學生們在教室裡認真學習", words: ["學生們", "在教室裡", "認真", "學習"], diff: 3, points: 20 },
+            { text: "我們每天都要早睡早起", words: ["我們", "每天", "都要", "早睡早起"], diff: 3, points: 20 },
+            { text: "老師教我們寫漂亮的字", words: ["老師", "教我們", "寫", "漂亮的字"], diff: 3, points: 20 },
+
+            // Lv. 4 進階 (25分)
+            { text: "星期天媽媽帶我去圖書館", words: ["星期天", "媽媽", "帶我", "去圖書館"], diff: 4, points: 25 },
+            { text: "晴朗的早上爸爸去運動場跑步", words: ["晴朗的", "早上", "爸爸", "去運動場", "跑步"], diff: 4, points: 25 },
+            { text: "姐姐很喜歡到動物園參觀", words: ["姐姐", "很喜歡", "到", "動物園", "參觀"], diff: 4, points: 25 },
+
+            // Lv. 5 挑戰 (30分)
+            { text: "下雨了所以我們留在家裡讀書", words: ["下雨了", "所以", "我們", "留在家裡", "讀書"], diff: 5, points: 30 },
+            { text: "請你把桌上的玩具收拾好", words: ["請你", "把", "桌上的", "玩具", "收拾好"], diff: 5, points: 30 },
+            { text: "放學後我自己收拾書包", words: ["放學後", "我", "自己", "收拾", "書包"], diff: 5, points: 30 }
+        ];
+
+        // 難度顯示對應表
+        const diffLabels = {
+            1: "Lv.1 簡單",
+            2: "Lv.2 基礎",
+            3: "Lv.3 中等",
+            4: "Lv.4 進階",
+            5: "Lv.5 挑戰"
+        };
+
+        class TrainGame {
+            constructor() {
+                this.idx = 0;
+                this.score = 0;
+                this.isAnimating = false;
+                
+                // Audio Engine Context
+                this.audioCtx = null;
+                
+                // DOM Elements
+                this.sentenceArea = document.getElementById('sentence-area');
+                this.pool = document.getElementById('word-pool');
+                this.modal = document.getElementById('modal');
+                this.dotsContainer = document.getElementById('dots-container');
+                this.steamEl = document.getElementById('steam');
+                this.levelSelector = document.getElementById('level-selector');
+                
+                this.init();
+            }
+
+            init() {
+                this.createClouds();
+                this.renderDots();
+                this.populateLevelSelector();
+                this.loadLevel(0);
+            }
+
+            // 建立下拉選單內容
+            populateLevelSelector() {
+                this.levelSelector.innerHTML = '';
+                levels.forEach((lvl, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.innerText = `[${diffLabels[lvl.diff]}] ${lvl.text.substring(0, 8)}...`;
+                    this.levelSelector.appendChild(opt);
+                });
+            }
+
+            // 用戶選取新關卡時觸發
+            selectLevel(selectedIndex) {
+                if (this.isAnimating) return;
+                this.loadLevel(parseInt(selectedIndex, 10));
+            }
+
+            // --- Audio System ---
+            initAudio() {
+                if (!this.audioCtx) {
+                    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+            }
+
+            playFailSound() {
+                this.initAudio();
+                const t = this.audioCtx.currentTime;
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, t);
+                osc.frequency.exponentialRampToValueAtTime(50, t + 0.3); 
+                
+                gain.gain.setValueAtTime(0.3, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+                
+                osc.start(t);
+                osc.stop(t + 0.3);
+            }
+
+            playWinSound() {
+                this.initAudio();
+                const t = this.audioCtx.currentTime;
+                
+                // 1. 鳴笛聲
+                const whistleFreqs = [311.13, 392.00, 466.16, 523.25];
+                whistleFreqs.forEach(freq => {
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.audioCtx.destination);
+                    
+                    osc.type = 'square';
+                    osc.frequency.value = freq;
+                    
+                    gain.gain.setValueAtTime(0, t);
+                    gain.gain.linearRampToValueAtTime(0.05, t + 0.1);
+                    gain.gain.setValueAtTime(0.05, t + 0.8);
+                    gain.gain.linearRampToValueAtTime(0, t + 1.2);
+                    
+                    osc.start(t);
+                    osc.stop(t + 1.2);
+                });
+
+                // 2. 節奏聲
+                let chugTime = t + 0.2;
+                for (let i = 0; i < 12; i++) {
+                    const chugOsc = this.audioCtx.createOscillator();
+                    const chugGain = this.audioCtx.createGain();
+                    chugOsc.connect(chugGain);
+                    chugGain.connect(this.audioCtx.destination);
+                    
+                    chugOsc.type = 'sawtooth';
+                    chugOsc.frequency.value = 60;
+                    
+                    chugGain.gain.setValueAtTime(0, chugTime);
+                    chugGain.gain.linearRampToValueAtTime(0.15, chugTime + 0.05);
+                    chugGain.gain.linearRampToValueAtTime(0, chugTime + 0.15);
+                    
+                    chugOsc.start(chugTime);
+                    chugOsc.stop(chugTime + 0.15);
+                    chugTime += 0.25; 
+                }
+            }
+
+            createClouds() {
+                const scene = document.getElementById('scene');
+                for(let i=0; i<3; i++) {
+                    const c = document.createElement('div');
+                    c.className = 'cloud';
+                    c.style.width = (80 + Math.random()*60) + 'px';
+                    c.style.height = (30 + Math.random()*20) + 'px';
+                    c.style.top = (10 + i*10) + '%';
+                    c.style.animationDuration = (15 + Math.random()*20) + 's';
+                    c.style.animationDelay = (i * -5) + 's';
+                    scene.appendChild(c);
+                }
+            }
+
+            renderDots() {
+                this.dotsContainer.innerHTML = '';
+                levels.forEach((l, i) => {
+                    const d = document.createElement('div');
+                    d.className = `progress-dot ${i < this.idx ? 'active' : ''}`;
+                    this.dotsContainer.appendChild(d);
+                });
+            }
+
+            loadLevel(index) {
+                this.idx = index;
+                this.isAnimating = false;
+                
+                this.levelSelector.value = index;
+                
+                this.sentenceArea.style.transition = 'none';
+                this.sentenceArea.style.transform = 'translateX(-50%)';
+                this.sentenceArea.classList.remove('shake');
+                
+                const engine = this.sentenceArea.querySelector('.engine');
+                this.sentenceArea.innerHTML = '';
+                this.sentenceArea.appendChild(engine);
+                this.pool.innerHTML = '';
+
+                const dots = this.dotsContainer.querySelectorAll('.progress-dot');
+                dots.forEach((d, i) => d.classList.toggle('active', i <= index));
+
+                const badge = document.createElement('div');
+                badge.style.cssText = "width:100%; text-align:center; color:#fff; font-weight:bold; text-shadow:1px 1px 2px #000; margin-bottom:0px;";
+                badge.innerText = diffLabels[levels[index].diff] || "Lv.1 簡單";
+                this.pool.appendChild(badge);
+
+                const words = [...levels[index].words].sort(() => Math.random() - 0.5);
+                words.forEach(word => {
+                    const el = this.createCar(word);
+                    this.pool.appendChild(el);
+                });
+            }
+
+            // 建立可點擊互動的火車車廂
+            createCar(word) {
+                const div = document.createElement('div');
+                div.className = 'train-part car';
+                
+                let fontSize = '1.6rem';
+                if (window.innerWidth <= 480) {
+                    if (word.length >= 4) fontSize = '0.85rem';
+                    else if (word.length === 3) fontSize = '0.95rem';
+                    else fontSize = '1.2rem';
+                } else if (window.innerWidth <= 820) {
+                    if (word.length >= 4) fontSize = '1.0rem';
+                    else if (word.length === 3) fontSize = '1.15rem';
+                    else fontSize = '1.4rem';
+                } else {
+                    if (word.length >= 4) fontSize = '1.1rem';
+                    else if (word.length === 3) fontSize = '1.3rem';
+                    else fontSize = '1.6rem';
+                }
+
+                div.innerHTML = `<span style="font-size: ${fontSize}; pointer-events: none;">${word}</span><div class="wheels"><div class="wheel"></div><div class="wheel"></div></div>`;
+                div.dataset.word = word;
+
+                // 點擊事件：在下方字池點擊 -> 裝上火車；在火車點擊 -> 回到字池
+                div.addEventListener('click', () => {
+                    if (this.isAnimating) return;
+                    this.initAudio();
+
+                    if (div.parentElement === this.pool) {
+                        this.sentenceArea.appendChild(div);
+                    } else if (div.parentElement === this.sentenceArea) {
+                        this.pool.appendChild(div);
+                    }
+                });
+
+                return div;
+            }
+
+            resetLevel() {
+                if(this.isAnimating) return;
+                this.loadLevel(this.idx);
+            }
+
+            checkAnswer() {
+                if (this.isAnimating) return;
+                
+                this.initAudio();
+
+                const cars = Array.from(this.sentenceArea.querySelectorAll('.car'));
+                if (cars.length === 0) return; 
+
+                const input = cars.map(c => c.dataset.word).join('');
+                const target = levels[this.idx].text;
+
+                if (input === target) {
+                    this.playWinAnim();
+                } else {
+                    this.playFailAnim();
+                }
+            }
+
+            playFailAnim() {
+                this.playFailSound(); 
+                
+                this.sentenceArea.classList.remove('shake');
+                void this.sentenceArea.offsetWidth;
+                this.sentenceArea.classList.add('shake');
+            }
+
+            playWinAnim() {
+                this.isAnimating = true;
+                this.playWinSound(); 
+
+                this.score += levels[this.idx].points;
+                document.getElementById('score-display').innerText = this.score;
+
+                document.querySelectorAll('.train-part').forEach(p => p.classList.add('moving'));
+
+                let count = 0;
+                const puff = () => {
+                    this.steamEl.style.animation = 'none';
+                    this.steamEl.offsetHeight; 
+                    this.steamEl.style.animation = 'puff 0.6s ease-out forwards';
+                    count++;
+                    if(count < 5) setTimeout(puff, 400);
+                };
+                puff();
+
+                setTimeout(() => {
+                    const moveDist = window.innerWidth + this.sentenceArea.offsetWidth + 200;
+                    this.sentenceArea.style.transition = 'transform 1.5s ease-in';
+                    this.sentenceArea.style.transform = `translateX(-${moveDist}px)`;
+                }, 800);
+
+                setTimeout(() => {
+                    this.sentenceArea.style.transition = 'none';
+                    this.sentenceArea.style.transform = `translateX(100vw)`;
+                    
+                    const engine = this.sentenceArea.querySelector('.engine');
+                    this.sentenceArea.innerHTML = '';
+                    this.sentenceArea.appendChild(engine);
+                    
+                    engine.classList.add('moving');
+                }, 2400);
+
+                setTimeout(() => {
+                    this.sentenceArea.style.transition = 'transform 1.5s ease-out';
+                    this.sentenceArea.style.transform = 'translateX(-50%)';
+                }, 2500);
+
+                setTimeout(() => {
+                    const engine = this.sentenceArea.querySelector('.engine');
+                    if (engine) engine.classList.remove('moving');
+                    this.showModal(true);
+                }, 4100);
+            }
+
+            showModal(success) {
+                const title = document.getElementById('m-title');
+                const msg = document.getElementById('m-msg');
+                
+                if (success) {
+                    title.innerText = "🎉 挑戰成功！";
+                    title.className = "modal-title success";
+                    msg.innerText = `答對了！獲得 ${levels[this.idx].points} 分`;
+                } else {
+                    title.innerText = "😅 再想想...";
+                    title.className = "modal-title fail";
+                    msg.innerText = "句子好像不對喔，請重試！";
+                }
+                
+                this.modal.classList.add('visible');
+            }
+
+            handleModalClick() {
+                this.modal.classList.remove('visible');
+                if (document.querySelector('.success') && this.idx < levels.length - 1) {
+                    this.loadLevel(this.idx + 1);
+                } else if (this.idx >= levels.length - 1) {
+                    alert("恭喜！你完成了所有 K3 關卡挑戰！將為你重新開始遊戲。");
+                    this.score = 0;
+                    document.getElementById('score-display').innerText = 0;
+                    this.loadLevel(0);
+                }
+            }
+        }
+
+        const game = new TrainGame();
+    </script>
+</body>
+</html>
