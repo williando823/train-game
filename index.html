@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>K3 趣味學習遊戲 | K3 Fun Learning Games</title>
+    <!-- PWA Requirements -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#FFB347">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI0ZGQjM0NyIvPjx0ZXh0IHk9IjcwIiB4PSIxNSIgZm9udC1zaXplPSI2NSI+4reQPC90ZXh0Pjwvc3ZnPg==">
     <style>
         :root { --primary: #FFB347; --secondary: #FFCC33; --bg: #F0F8FF; --text: #333333; --white: #FFFFFF; --green: #4CAF50; --red: #FF5252; }
         * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -199,9 +203,26 @@
             star.onclick = () => {
                 if(!isMuted) initAudio(); 
                 if (gameVars.locked) return;
-                star.classList.remove('active'); void star.offsetWidth; playNote(notes[i]); star.classList.add('active'); 
-                if (gameVars.sequence[gameVars.playerStep] === i) { gameVars.playerStep++; if (gameVars.playerStep === gameVars.sequence.length) { gameVars.locked = true; setTimeout(showWin, 500); } } 
-                else { playSound('error'); gameVars.locked = true; gameVars.playerStep = 0; setTimeout(() => playSequenceGame2(0), 1000); }
+                
+                // FIXED BUG: Reset and properly clear active class after 400ms
+                star.classList.remove('active'); 
+                void star.offsetWidth; 
+                playNote(notes[i]); 
+                star.classList.add('active'); 
+                setTimeout(() => star.classList.remove('active'), 400); // <-- Added cleanup
+                
+                if (gameVars.sequence[gameVars.playerStep] === i) { 
+                    gameVars.playerStep++; 
+                    if (gameVars.playerStep === gameVars.sequence.length) { 
+                        gameVars.locked = true; setTimeout(showWin, 500); 
+                    } 
+                } 
+                else { 
+                    playSound('error'); 
+                    gameVars.locked = true; 
+                    gameVars.playerStep = 0; 
+                    setTimeout(() => playSequenceGame2(0), 1000); 
+                }
             }; grid.appendChild(star); gameVars.elements.push({ el: star, note: notes[i] });
         }
         for (let i=0; i<seqLength; i++) gameVars.sequence.push(Math.floor(Math.random()*numStars));
@@ -211,7 +232,13 @@
     function playSequenceGame2(step) { 
         if (step >= gameVars.sequence.length) { gameVars.locked = false; return; } 
         const item = gameVars.elements[gameVars.sequence[step]]; 
-        playNote(item.note); item.el.classList.remove('active'); void item.el.offsetWidth; item.el.classList.add('active'); 
+        playNote(item.note); 
+        
+        item.el.classList.remove('active'); 
+        void item.el.offsetWidth; 
+        item.el.classList.add('active'); 
+        setTimeout(() => item.el.classList.remove('active'), 400); // <-- Added cleanup
+        
         setTimeout(() => playSequenceGame2(step + 1), 800); 
     }
 
@@ -238,14 +265,21 @@
     }
 
     function initGame4() {
-        grid.style.flexDirection = 'column'; // Stack items and buttons vertically
-        const difficultyRanges = [[1, 3], [3, 5], [5, 8], [7, 12], [10, 15]]; // Min/Max per level
+        grid.style.flexDirection = 'column'; 
+        const difficultyRanges = [[1, 3], [3, 5], [5, 8], [7, 12], [10, 15]]; 
         const min = difficultyRanges[currentLevel - 1][0];
         const max = difficultyRanges[currentLevel - 1][1];
         const targetCount = Math.floor(Math.random() * (max - min + 1)) + min;
         
-        const fruits = ['🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍'];
-        const currentFruit = fruits[Math.floor(Math.random() * fruits.length)];
+        // MASSIVE REFRESH: Mixed toys, vehicles, animals, space, and weather instead of just fruits!
+        const items = [
+            '🚗','🚌','🚓','🚒','🚲','✈️','🚀','🛸','🚤',
+            '🧸','🎈','⚽','🏀','🎸','🥁','🪁','🪄',
+            '🐶','🐱','🐭','🐹','🐰','🐼','🐨','🐯','🦁',
+            '🐮','🐷','🐸','🐙','🐢','🦕','🦋','🐞','🐝',
+            '☀️','🌙','⭐','🌈','⛄'
+        ];
+        const currentItem = items[Math.floor(Math.random() * items.length)];
         
         gameVars = { target: targetCount, locked: false };
         
@@ -263,8 +297,8 @@
         itemContainer.className = 'g4-items';
         for(let i = 0; i < targetCount; i++) {
             const span = document.createElement('span');
-            span.innerText = currentFruit;
-            span.style.animationDelay = `${i * 0.05}s`; // Stagger popup
+            span.innerText = currentItem; // Now uses the new massive array
+            span.style.animationDelay = `${i * 0.05}s`; 
             itemContainer.appendChild(span);
         }
         
@@ -300,6 +334,13 @@
         
         grid.appendChild(itemContainer);
         grid.appendChild(choiceContainer);
+    }
+
+    // PWA Service Worker Registration
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW setup failed:', err));
+        });
     }
 
     function launchGame() { clearGrid(); updateProgress(); updatePrompt(); if (currentGame == 1) initGame1(); else if (currentGame == 2) initGame2(); else if (currentGame == 3) initGame3(); else if (currentGame == 4) initGame4(); }
